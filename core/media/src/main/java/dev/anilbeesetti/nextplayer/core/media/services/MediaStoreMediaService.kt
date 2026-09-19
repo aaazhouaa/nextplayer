@@ -19,12 +19,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Named
@@ -65,19 +67,26 @@ class MediaStoreMediaService(
      * One [ContentObserver] is registered for all observers (regardless of folder path),
      * and bursts of change notifications (common during media scans) are coalesced via
      * [debounce] so downstream collectors re-query at most once per quiet window.
+     *
+     * Manual refreshes (pull-to-refresh) also emit through [manualRefresh] so the UI
+     * re-queries even when MediaStore doesn't fire a change notification.
      */
+    private val manualRefresh = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
     @OptIn(FlowPreview::class)
-    private val mediaChanges: Flow<Unit> = callbackFlow {
-        val observer = object : ContentObserver(null) {
-            override fun onChange(selfChange: Boolean) {
-                trySend(Unit)
+    private val mediaChanges: Flow<Unit> = merge(
+        callbackFlow {
+            val observer = object : ContentObserver(null) {
+                override fun onChange(selfChange: Boolean) {
+                    trySend(Unit)
+                }
             }
-        }
-        context.contentResolver.registerContentObserver(VIDEO_COLLECTION_URI, true, observer)
-        trySend(Unit)
-        awaitClose { context.contentResolver.unregisterContentObserver(observer) }
-    }
-        .debounce(OBSERVER_DEBOUNCE_MS.milliseconds)
+            context.contentResolver.registerContentObserver(VIDEO_COLLECTION_URI, true, observer)
+            trySend(Unit)
+            awaitClose { context.contentResolver.unregisterContentObserver(observer) }
+        }.debounce(OBSERVER_DEBOUNCE_MS.milliseconds),
+        manualRefresh,
+    )
         .shareIn(
             scope = applicationScope,
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
@@ -136,6 +145,7 @@ class MediaStoreMediaService(
 
     override fun invalidateHiddenCache() {
         hiddenVideoScanner.invalidate()
+        manualRefresh.tryEmit(Unit)
     }
 
     override suspend fun findVideo(uri: Uri): MediaVideo? = withContext(Dispatchers.IO) {

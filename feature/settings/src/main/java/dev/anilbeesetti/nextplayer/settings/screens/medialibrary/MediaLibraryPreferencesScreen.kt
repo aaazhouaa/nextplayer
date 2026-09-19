@@ -151,28 +151,17 @@ private fun MediaLibraryPreferencesScreenContent(
                     isFirstItem = false,
                     isLastItem = false,
                 )
-                if (preferences.scanFolders.isEmpty()) {
+                preferences.scanFolders.forEachIndexed { index, path ->
                     ClickablePreferenceItem(
-                        modifier = Modifier.restorableFocusItem(focusState, "no_scan_folders"),
-                        title = stringResource(id = R.string.no_scan_folders),
+                        modifier = Modifier.restorableFocusItem(focusState, "scan_folder_$path"),
+                        title = path,
+                        description = path,
                         icon = NextIcons.Folder,
                         onClick = {},
+                        onLongClick = { pendingRemovalPath = path },
                         isFirstItem = false,
-                        isLastItem = false,
+                        isLastItem = index == preferences.scanFolders.lastIndex,
                     )
-                } else {
-                    preferences.scanFolders.forEachIndexed { index, path ->
-                        ClickablePreferenceItem(
-                            modifier = Modifier.restorableFocusItem(focusState, "scan_folder_$path"),
-                            title = path,
-                            description = path,
-                            icon = NextIcons.Folder,
-                            onClick = {},
-                            onLongClick = { pendingRemovalPath = path },
-                            isFirstItem = false,
-                            isLastItem = index == preferences.scanFolders.lastIndex,
-                        )
-                    }
                 }
                 ClickablePreferenceItem(
                     modifier = Modifier.restorableFocusItem(focusState, "manage_folders"),

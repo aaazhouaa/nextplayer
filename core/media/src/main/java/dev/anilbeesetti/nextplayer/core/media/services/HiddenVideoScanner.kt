@@ -36,8 +36,9 @@ class HiddenVideoScanner(
     /**
      * Returns video files found under [root] that MediaStore skips.
      *
-     * Results are cached in memory until [invalidate] is called; repeated calls with the same
-     * arguments reuse the previous scan instead of walking the file system again.
+     * Results are cached in memory and persisted to disk, so a cold start reuses the last scan
+     * instead of walking the file system again. Only [invalidate] (pull-to-refresh) drops both
+     * caches and forces a fresh walk.
      *
      * @param root The absolute directory to scan, or null to scan every storage volume.
      * @param respectNoMedia When true, directories whose own name or any ancestor contains a
@@ -48,6 +49,10 @@ class HiddenVideoScanner(
 
         val key = ScanKey(root, respectNoMedia)
         cache[key]?.let { return it }
+        loadFromDisk(key)?.let { cached ->
+            cache[key] = cached
+            return cached
+        }
 
         val roots = root?.let(::listOf) ?: storageVolumeRoots()
         val mediaStorePaths = mediaStoreVideoPaths()
@@ -65,13 +70,62 @@ class HiddenVideoScanner(
             )
         }
         cache[key] = result
+        saveToDisk(key, result)
         return result
     }
 
-    /** Drops cached scans so the next [scan] walks the file system again. */
+    /** Drops both the in-memory and persisted caches so the next [scan] walks the file system again. */
     fun invalidate() {
         cache.clear()
+        clearDiskCache()
     }
+
+    private fun diskFile(key: ScanKey): File {
+        val rootHash = key.root?.hashCode() ?: 0
+        return File(context.filesDir, "hidden_scan_${rootHash}_${key.respectNoMedia}.txt")
+    }
+
+    private fun saveToDisk(key: ScanKey, videos: List<MediaVideo>) {
+        runCatching {
+            diskFile(key).writeText(videos.joinToString("\n") { it.path })
+        }
+    }
+
+    private fun loadFromDisk(key: ScanKey): List<MediaVideo>? {
+        val file = diskFile(key)
+        if (!file.exists()) return null
+        return runCatching {
+            val videos = file.readLines()
+                .asSequence()
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .mapNotNull { path -> File(path).takeIf { it.isFile }?.toMediaVideo() }
+                .toList()
+            if (videos.isEmpty()) file.delete()
+            videos
+        }.getOrNull()
+    }
+
+    private fun clearDiskCache() {
+        context.filesDir.listFiles()
+            ?.filter { it.name.startsWith("hidden_scan_") }
+            ?.forEach { it.delete() }
+    }
+
+    private fun File.toMediaVideo(): MediaVideo = MediaVideo(
+        id = absolutePath.hashCode().toLong(),
+        uri = toUri(),
+        path = absolutePath,
+        title = name,
+        parentPath = parent ?: "/",
+        displayName = name,
+        duration = 0L,
+        size = length(),
+        width = 0,
+        height = 0,
+        dateModified = lastModified(),
+        isHidden = true,
+    )
 
     private fun scanDirectory(
         directory: File,
