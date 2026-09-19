@@ -48,8 +48,8 @@ class MediaLibraryPreferencesViewModel(
             is MediaLibraryPreferencesUiEvent.ToggleMarkLastPlayedMedia -> toggleMarkLastPlayedMedia()
             is MediaLibraryPreferencesUiEvent.ToggleShowHiddenFiles -> toggleShowHiddenFiles()
             is MediaLibraryPreferencesUiEvent.ToggleRespectNoMedia -> toggleRespectNoMedia()
-            is MediaLibraryPreferencesUiEvent.PickScanFolder -> pickScanFolder()
-            is MediaLibraryPreferencesUiEvent.ClearScanFolder -> clearScanFolder()
+            is MediaLibraryPreferencesUiEvent.AddScanFolder -> addScanFolder()
+            is MediaLibraryPreferencesUiEvent.RemoveScanFolder -> removeScanFolder(action.path)
         }
     }
 
@@ -77,21 +77,22 @@ class MediaLibraryPreferencesViewModel(
         }
     }
 
-    private fun pickScanFolder() {
+    private fun addScanFolder() {
         viewModelScope.launch {
             val path = systemService.pickFolderPath()
             if (path != null) {
                 preferencesRepository.updateApplicationPreferences {
-                    it.copy(scanFolderPath = path)
+                    val folders = if (path in it.scanFolders) it.scanFolders else it.scanFolders + path
+                    it.copy(scanFolders = folders)
                 }
             }
         }
     }
 
-    private fun clearScanFolder() {
+    private fun removeScanFolder(path: String) {
         viewModelScope.launch {
             preferencesRepository.updateApplicationPreferences {
-                it.copy(scanFolderPath = null)
+                it.copy(scanFolders = it.scanFolders - path)
             }
         }
     }
@@ -109,6 +110,6 @@ sealed interface MediaLibraryPreferencesUiEvent {
     data object ToggleMarkLastPlayedMedia : MediaLibraryPreferencesUiEvent
     data object ToggleShowHiddenFiles : MediaLibraryPreferencesUiEvent
     data object ToggleRespectNoMedia : MediaLibraryPreferencesUiEvent
-    data object PickScanFolder : MediaLibraryPreferencesUiEvent
-    data object ClearScanFolder : MediaLibraryPreferencesUiEvent
+    data object AddScanFolder : MediaLibraryPreferencesUiEvent
+    data class RemoveScanFolder(val path: String) : MediaLibraryPreferencesUiEvent
 }

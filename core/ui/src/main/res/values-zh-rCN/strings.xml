@@ -99,6 +99,10 @@
     <string name="scan_folder">扫描文件夹</string>
     <string name="scan_folder_desc">将媒体库限制到指定文件夹</string>
     <string name="scan_folder_all">全部存储空间</string>
+    <string name="add_scan_folder">添加扫描文件夹</string>
+    <string name="no_scan_folders">未选择文件夹 — 正在扫描全部存储空间</string>
+    <string name="remove_scan_folder">移除扫描文件夹</string>
+    <string name="remove_scan_folder_confirmation">将该文件夹从扫描范围中移除？</string>
     <string name="clear_scan_folder">清除扫描文件夹</string>
     <string name="screen_rotation">屏幕旋转</string>
     <string name="automatic">自动（传感器）</string>

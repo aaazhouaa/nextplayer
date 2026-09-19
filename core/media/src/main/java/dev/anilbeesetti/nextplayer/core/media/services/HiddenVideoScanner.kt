@@ -7,6 +7,7 @@ import android.provider.MediaStore
 import androidx.annotation.RequiresApi
 import androidx.core.net.toUri
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import org.koin.core.annotation.Single
 
 /**
@@ -27,8 +28,16 @@ class HiddenVideoScanner(
     private val context: Context,
 ) {
 
+    private data class ScanKey(val root: String?, val respectNoMedia: Boolean)
+
+    /** In-memory scan results keyed by root + .nomedia policy, avoiding repeated directory walks. */
+    private val cache = ConcurrentHashMap<ScanKey, List<MediaVideo>>()
+
     /**
      * Returns video files found under [root] that MediaStore skips.
+     *
+     * Results are cached in memory until [invalidate] is called; repeated calls with the same
+     * arguments reuse the previous scan instead of walking the file system again.
      *
      * @param root The absolute directory to scan, or null to scan every storage volume.
      * @param respectNoMedia When true, directories whose own name or any ancestor contains a
@@ -37,11 +46,31 @@ class HiddenVideoScanner(
     suspend fun scan(root: String?, respectNoMedia: Boolean = false): List<MediaVideo> {
         if (!isFileSystemAccessible()) return emptyList()
 
+        val key = ScanKey(root, respectNoMedia)
+        cache[key]?.let { return it }
+
         val roots = root?.let(::listOf) ?: storageVolumeRoots()
         val mediaStorePaths = mediaStoreVideoPaths()
 
         val seen = mutableSetOf<String>()
-        return roots.flatMap { scanDirectory(File(it), mediaStorePaths, seen, respectNoMedia) }
+        val result = roots.flatMap { rootPath ->
+            val rootFile = File(rootPath)
+            scanDirectory(
+                directory = rootFile,
+                mediaStorePaths = mediaStorePaths,
+                seen = seen,
+                respectNoMedia = respectNoMedia,
+                isDirectoryHidden = rootFile.isHiddenPath(),
+                ancestorHasNoMedia = rootFile.hasNoMediaAncestor(),
+            )
+        }
+        cache[key] = result
+        return result
+    }
+
+    /** Drops cached scans so the next [scan] walks the file system again. */
+    fun invalidate() {
+        cache.clear()
     }
 
     private fun scanDirectory(
@@ -50,27 +79,30 @@ class HiddenVideoScanner(
         seen: MutableSet<String>,
         respectNoMedia: Boolean,
         isDirectoryHidden: Boolean = false,
+        ancestorHasNoMedia: Boolean = false,
     ): List<MediaVideo> {
         if (!directory.isDirectory) return emptyList()
 
         val results = mutableListOf<MediaVideo>()
         val children = directory.listFiles() ?: return emptyList()
         val hasNoMediaMarker = children.any { it.name.equals(".nomedia", ignoreCase = true) }
+        val effectiveNoMedia = ancestorHasNoMedia || hasNoMediaMarker
 
         // When respecting .nomedia, this directory is excluded together with its whole subtree.
-        if (respectNoMedia && hasNoMediaMarker) return emptyList()
+        if (respectNoMedia && effectiveNoMedia) return emptyList()
 
         for (child in children) {
             if (child.isDirectory) {
                 // A hidden or .nomedia directory hides its whole subtree, so propagate the hidden
-                // state downward while descending into it.
-                val childHidden = isDirectoryHidden || child.name.startsWith(".") || hasNoMediaMarker
-                results += scanDirectory(child, mediaStorePaths, seen, respectNoMedia, childHidden)
+                // state downward while descending into it. A non-hidden child under a hidden parent
+                // must also inherit the parent's hidden state (multi-level hidden folders).
+                val childHidden = isDirectoryHidden || child.name.startsWith(".") || effectiveNoMedia
+                results += scanDirectory(child, mediaStorePaths, seen, respectNoMedia, childHidden, effectiveNoMedia)
                 continue
             }
 
             if (!child.isFile) continue
-            if (!child.name.startsWith(".") && !hasNoMediaMarker && !isDirectoryHidden) continue
+            if (!child.name.startsWith(".") && !effectiveNoMedia && !isDirectoryHidden) continue
             if (!child.isSupportedVideo()) continue
 
             val canonical = child.canonicalPath ?: child.absolutePath
@@ -97,6 +129,22 @@ class HiddenVideoScanner(
         }
 
         return results
+    }
+
+    /** True when any path segment of this directory starts with a dot. */
+    private fun File.isHiddenPath(): Boolean =
+        absolutePath.split(File.separator).any { it.startsWith(".") }
+
+    /** True when this directory or any of its ancestors contains a `.nomedia` marker. */
+    private fun File.hasNoMediaAncestor(): Boolean {
+        var current: File? = this
+        while (current != null) {
+            if (File(current, ".nomedia").exists()) return true
+            val parent = current.parentFile ?: return false
+            if (parent == current) return false
+            current = parent
+        }
+        return false
     }
 
     private fun storageVolumeRoots(): List<String> = buildList {

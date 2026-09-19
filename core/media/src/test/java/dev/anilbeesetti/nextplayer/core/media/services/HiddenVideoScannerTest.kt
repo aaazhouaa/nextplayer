@@ -62,4 +62,36 @@ class HiddenVideoScannerTest {
         assertTrue(paths.contains(hiddenFile.path))
         assertTrue(result.none { it.path.startsWith(noMediaDir.path) })
     }
+
+    @Test
+    fun `finds videos in multi-level hidden folders`() = runBlocking {
+        val hiddenRoot = File(root, ".Movies").apply { mkdirs() }
+        val seasonDir = File(hiddenRoot, "Season1").apply { mkdirs() }
+        val videoInSeason = File(seasonDir, "episode.mkv").apply { writeText("video") }
+        val directVideo = File(hiddenRoot, "movie.mp4").apply { writeText("video") }
+
+        val result = scanner.scan(hiddenRoot.absolutePath)
+
+        val paths = result.map { it.path }.toSet()
+        assertEquals(2, result.size)
+        assertTrue(paths.contains(videoInSeason.path))
+        assertTrue(paths.contains(directVideo.path))
+        assertTrue(result.all { it.isHidden })
+    }
+
+    @Test
+    fun `finds videos when entering a non-dot child of a hidden ancestor`() = runBlocking {
+        val hiddenRoot = File(root, ".Movies").apply { mkdirs() }
+        val seasonDir = File(hiddenRoot, "Season1").apply { mkdirs() }
+        val deeperDir = File(seasonDir, "Sub").apply { mkdirs() }
+        val videoInDeeperDir = File(deeperDir, "episode.mkv").apply { writeText("video") }
+
+        // Simulate the user navigating into `.Movies/Season1` (root itself is not dot-named).
+        val result = scanner.scan(seasonDir.absolutePath)
+
+        val paths = result.map { it.path }.toSet()
+        assertEquals(1, result.size)
+        assertTrue(paths.contains(videoInDeeperDir.path))
+        assertTrue(result.all { it.isHidden })
+    }
 }

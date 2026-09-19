@@ -65,11 +65,18 @@ class LocalMediaOperationsService(
     }
 
     override suspend fun deleteMedia(uris: List<Uri>, permanently: Boolean): Boolean = withContext(Dispatchers.IO) {
-        return@withContext if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (permanently) deleteMediaR(uris) else trashMediaR(uris)
-        } else {
-            deleteMediaBelowR(uris)
+        val (fileUris, providerUris) = uris.partition { it.scheme.equals("file", ignoreCase = true) }
+        val fileDeleted = fileUris.all { uri ->
+            uri.path?.let { File(it).delete() } ?: false
         }
+        if (providerUris.isEmpty()) return@withContext fileDeleted
+
+        val providerDeleted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (permanently) deleteMediaR(providerUris) else trashMediaR(providerUris)
+        } else {
+            deleteMediaBelowR(providerUris)
+        }
+        return@withContext fileDeleted && providerDeleted
     }
 
     override suspend fun restoreMedia(uris: List<Uri>): Boolean = withContext(Dispatchers.IO) {
@@ -290,7 +297,7 @@ class LocalMediaOperationsService(
         }.getOrNull() ?: return null
 
         return try {
-            val bytes = contentResolver.openInputStream(source)?.use { input ->
+            val bytes = openInputStream(source)?.use { input ->
                 contentResolver.openOutputStream(destUri)?.use { output ->
                     copyStream(input, output, expectedSize, onProgress)
                 } ?: error("Unable to open output stream for $destUri")
@@ -315,8 +322,20 @@ class LocalMediaOperationsService(
     )
 
     private fun sizeOf(uri: Uri): Long = runCatching {
-        contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize.coerceAtLeast(0) }
+        if (uri.scheme.equals("file", ignoreCase = true)) {
+            uri.path?.let { File(it).length() } ?: 0L
+        } else {
+            contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize.coerceAtLeast(0) } ?: 0L
+        }
     }.getOrNull() ?: 0L
+
+    private fun openInputStream(uri: Uri): InputStream? = runCatching {
+        if (uri.scheme.equals("file", ignoreCase = true)) {
+            uri.path?.let { File(it).inputStream() }
+        } else {
+            contentResolver.openInputStream(uri)
+        }
+    }.getOrNull()
 
     private suspend fun copyStream(
         input: InputStream,

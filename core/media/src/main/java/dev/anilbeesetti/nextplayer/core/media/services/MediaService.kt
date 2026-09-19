@@ -78,6 +78,12 @@ interface MediaService {
     ): List<MediaVideo>
 
     /**
+     * Drops any in-memory cache of the hidden-file scan so the next query re-walks the file system.
+     * Called after an explicit media rescan.
+     */
+    fun invalidateHiddenCache()
+
+    /**
      * Finds a specific video by its content URI.
      *
      * @param uri The content URI of the video.

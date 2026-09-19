@@ -42,6 +42,7 @@ class LocalMediaSynchronizer(
     private var mediaSyncingJob: Job? = null
 
     override suspend fun refresh(path: String?): Boolean {
+        mediaService.invalidateHiddenCache()
         return path?.let { context.scanPaths(listOf(path)) }
             ?: context.getStorageVolumes().all { context.scanStorage(it.path) }
     }

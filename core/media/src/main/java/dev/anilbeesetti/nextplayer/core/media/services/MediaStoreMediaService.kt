@@ -134,7 +134,16 @@ class MediaStoreMediaService(
         return@withContext mediaStoreVideos + hiddenVideos.filter { it.path !in knownPaths }
     }
 
+    override fun invalidateHiddenCache() {
+        hiddenVideoScanner.invalidate()
+    }
+
     override suspend fun findVideo(uri: Uri): MediaVideo? = withContext(Dispatchers.IO) {
+        // Hidden videos discovered by the file-system scanner use a file:// uri; MediaStore has
+        // no row for them, so resolve the file directly instead of querying the provider.
+        if (uri.scheme.equals("file", ignoreCase = true)) {
+            return@withContext uri.toFileMediaVideo()
+        }
         return@withContext try {
             context.contentResolver.query(
                 uri,
@@ -152,6 +161,25 @@ class MediaStoreMediaService(
             // MediaStore row for it is the correct outcome, not a crash.
             null
         }
+    }
+
+    private fun Uri.toFileMediaVideo(): MediaVideo? {
+        val file = File(path ?: return null)
+        if (!file.isFile) return null
+        return MediaVideo(
+            id = file.path.hashCode().toLong(),
+            uri = this,
+            path = file.path,
+            title = file.name,
+            parentPath = file.parent ?: "/",
+            displayName = file.name,
+            duration = 0L,
+            size = file.length(),
+            width = 0,
+            height = 0,
+            dateModified = file.lastModified(),
+            isHidden = file.path.split(File.separator).any { it.startsWith(".") },
+        )
     }
 
     override suspend fun findFolder(path: String): MediaFolder? = withContext(Dispatchers.IO) {

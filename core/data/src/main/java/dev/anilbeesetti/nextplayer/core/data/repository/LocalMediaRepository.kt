@@ -15,7 +15,10 @@ import dev.anilbeesetti.nextplayer.core.data.models.VideoState
 import dev.anilbeesetti.nextplayer.core.database.converter.UriListConverter
 import dev.anilbeesetti.nextplayer.core.database.dao.MediumStateDao
 import dev.anilbeesetti.nextplayer.core.database.entities.MediumStateEntity
+import dev.anilbeesetti.nextplayer.core.media.services.MediaFolder
 import dev.anilbeesetti.nextplayer.core.media.services.MediaService
+import dev.anilbeesetti.nextplayer.core.media.services.MediaVideo
+import dev.anilbeesetti.nextplayer.core.model.ApplicationPreferences
 import dev.anilbeesetti.nextplayer.core.model.Folder
 import dev.anilbeesetti.nextplayer.core.model.MediaInfo
 import dev.anilbeesetti.nextplayer.core.model.Video
@@ -45,33 +48,25 @@ class LocalMediaRepository(
     override fun observeFolders(folderPath: String?): Flow<List<Folder>> {
         return preferencesRepository.applicationPreferences
             .flatMapLatest { preferences ->
-                val scanRoot = folderPath ?: preferences.scanFolderPath
-                mediaService.observeFolders(
-                    folderPath = scanRoot,
-                    includeHidden = preferences.showHiddenFiles,
-                    respectNoMedia = preferences.respectNoMedia,
-                )
+                combine(scanRootFlows(preferences, folderPath)) { flows ->
+                    flows.flatMap { it }.distinctBy { it.path }.map { it.toFolder() }
+                }
             }
-            .map { mediaFolders -> mediaFolders.map { it.toFolder() } }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeVideos(folderPath: String?): Flow<List<Video>> {
         return preferencesRepository.applicationPreferences
             .flatMapLatest { preferences ->
-                val scanRoot = folderPath ?: preferences.scanFolderPath
                 combine(
-                    mediaService.observeVideos(
-                        folderPath = scanRoot,
-                        includeHidden = preferences.showHiddenFiles,
-                        respectNoMedia = preferences.respectNoMedia,
-                    ),
+                    combine(scanVideoFlows(preferences, folderPath)) { flows ->
+                        flows.flatMap { it }.distinctBy { it.uri }
+                    },
                     mediumStateDao.getAll(),
                 ) { mediaVideos, mediumStates ->
                     val statesMap = mediumStates.associateBy { it.uriString }
                     mediaVideos.map { mediaVideo ->
-                        val mediaState = statesMap[mediaVideo.uri.toString()]
-                        mediaVideo.toVideo(mediaState)
+                        mediaVideo.toVideo(statesMap[mediaVideo.uri.toString()])
                     }
                 }
             }
@@ -79,24 +74,64 @@ class LocalMediaRepository(
 
     override suspend fun fetchFolders(folderPath: String?): List<Folder> {
         val preferences = preferencesRepository.applicationPreferences.value
-        val scanRoot = folderPath ?: preferences.scanFolderPath
-        return mediaService.fetchFolders(
-            folderPath = scanRoot,
-            includeHidden = preferences.showHiddenFiles,
-            respectNoMedia = preferences.respectNoMedia,
-        ).map { it.toFolder() }
+        return scanRoots(preferences, folderPath)
+            .map { root ->
+                mediaService.fetchFolders(
+                    folderPath = root,
+                    includeHidden = preferences.showHiddenFiles,
+                    respectNoMedia = preferences.respectNoMedia,
+                )
+            }
+            .flatten()
+            .distinctBy { it.path }
+            .map { it.toFolder() }
     }
 
     override suspend fun fetchVideos(folderPath: String?): List<Video> {
         val preferences = preferencesRepository.applicationPreferences.value
-        val scanRoot = folderPath ?: preferences.scanFolderPath
-        return mediaService.fetchVideos(
-            folderPath = scanRoot,
-            includeHidden = preferences.showHiddenFiles,
-            respectNoMedia = preferences.respectNoMedia,
-        ).mapAsync { mediaVideo ->
+        val mediaVideos = scanRoots(preferences, folderPath)
+            .map { root ->
+                mediaService.fetchVideos(
+                    folderPath = root,
+                    includeHidden = preferences.showHiddenFiles,
+                    respectNoMedia = preferences.respectNoMedia,
+                )
+            }
+            .flatten()
+            .distinctBy { it.uri }
+        return mediaVideos.mapAsync { mediaVideo ->
             val mediaState = mediumStateDao.get(mediaVideo.uri.toString())
             mediaVideo.toVideo(mediaState)
+        }
+    }
+
+    private fun scanRoots(preferences: ApplicationPreferences, folderPath: String?): List<String?> {
+        return if (folderPath != null) {
+            listOf(folderPath)
+        } else if (preferences.scanFolders.isNotEmpty()) {
+            preferences.scanFolders
+        } else {
+            listOf(null)
+        }
+    }
+
+    private fun scanRootFlows(preferences: ApplicationPreferences, folderPath: String?): List<Flow<List<MediaFolder>>> {
+        return scanRoots(preferences, folderPath).map { root ->
+            mediaService.observeFolders(
+                folderPath = root,
+                includeHidden = preferences.showHiddenFiles,
+                respectNoMedia = preferences.respectNoMedia,
+            )
+        }
+    }
+
+    private fun scanVideoFlows(preferences: ApplicationPreferences, folderPath: String?): List<Flow<List<MediaVideo>>> {
+        return scanRoots(preferences, folderPath).map { root ->
+            mediaService.observeVideos(
+                folderPath = root,
+                includeHidden = preferences.showHiddenFiles,
+                respectNoMedia = preferences.respectNoMedia,
+            )
         }
     }
 

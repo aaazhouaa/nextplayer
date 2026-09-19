@@ -13,8 +13,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -30,6 +35,7 @@ import dev.anilbeesetti.nextplayer.core.model.ThumbnailGenerationStrategy
 import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.components.ClickablePreferenceItem
 import dev.anilbeesetti.nextplayer.core.ui.components.ListSectionTitle
+import dev.anilbeesetti.nextplayer.core.ui.components.NextDialog
 import dev.anilbeesetti.nextplayer.core.ui.components.NextTopAppBar
 import dev.anilbeesetti.nextplayer.core.ui.components.PreferenceSwitch
 import dev.anilbeesetti.nextplayer.core.ui.components.rememberRestorableFocusState
@@ -59,6 +65,8 @@ private fun MediaLibraryPreferencesScreenContent(
 ) {
     val preferences = state.preferences
     val context = LocalContext.current
+
+    var pendingRemovalPath by rememberSaveable { mutableStateOf<String?>(null) }
 
     val focusState = rememberRestorableFocusState()
 
@@ -135,23 +143,36 @@ private fun MediaLibraryPreferencesScreenContent(
                     isLastItem = false,
                 )
                 ClickablePreferenceItem(
-                    modifier = Modifier.restorableFocusItem(focusState, "scan_folder"),
-                    title = stringResource(id = R.string.scan_folder),
-                    description = preferences.scanFolderPath ?: stringResource(id = R.string.scan_folder_all),
-                    icon = NextIcons.Folder,
-                    onClick = { onAction(MediaLibraryPreferencesUiEvent.PickScanFolder) },
+                    modifier = Modifier.restorableFocusItem(focusState, "add_scan_folder"),
+                    title = stringResource(id = R.string.add_scan_folder),
+                    description = stringResource(id = R.string.scan_folder_desc),
+                    icon = NextIcons.Add,
+                    onClick = { onAction(MediaLibraryPreferencesUiEvent.AddScanFolder) },
                     isFirstItem = false,
                     isLastItem = false,
                 )
-                if (preferences.scanFolderPath != null) {
+                if (preferences.scanFolders.isEmpty()) {
                     ClickablePreferenceItem(
-                        modifier = Modifier.restorableFocusItem(focusState, "clear_scan_folder"),
-                        title = stringResource(id = R.string.clear_scan_folder),
-                        icon = NextIcons.FolderOff,
-                        onClick = { onAction(MediaLibraryPreferencesUiEvent.ClearScanFolder) },
+                        modifier = Modifier.restorableFocusItem(focusState, "no_scan_folders"),
+                        title = stringResource(id = R.string.no_scan_folders),
+                        icon = NextIcons.Folder,
+                        onClick = {},
                         isFirstItem = false,
                         isLastItem = false,
                     )
+                } else {
+                    preferences.scanFolders.forEachIndexed { index, path ->
+                        ClickablePreferenceItem(
+                            modifier = Modifier.restorableFocusItem(focusState, "scan_folder_$path"),
+                            title = path,
+                            description = path,
+                            icon = NextIcons.Folder,
+                            onClick = {},
+                            onLongClick = { pendingRemovalPath = path },
+                            isFirstItem = false,
+                            isLastItem = index == preferences.scanFolders.lastIndex,
+                        )
+                    }
                 }
                 ClickablePreferenceItem(
                     modifier = Modifier.restorableFocusItem(focusState, "manage_folders"),
@@ -183,6 +204,38 @@ private fun MediaLibraryPreferencesScreenContent(
                 )
             }
         }
+    }
+
+    pendingRemovalPath?.let { path ->
+        NextDialog(
+            onDismissRequest = { pendingRemovalPath = null },
+            title = {
+                Text(text = stringResource(id = R.string.remove_scan_folder))
+            },
+            content = {
+                Text(text = stringResource(id = R.string.remove_scan_folder_confirmation))
+                Text(
+                    text = path,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onAction(MediaLibraryPreferencesUiEvent.RemoveScanFolder(path))
+                        pendingRemovalPath = null
+                    },
+                ) {
+                    Text(text = stringResource(id = R.string.remove))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRemovalPath = null }) {
+                    Text(text = stringResource(id = R.string.cancel))
+                }
+            },
+        )
     }
 }
 

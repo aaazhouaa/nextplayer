@@ -104,8 +104,12 @@
     <string name="respect_no_media">Respect .nomedia</string>
     <string name="respect_no_media_desc">Exclude media in directories containing a .nomedia marker</string>
     <string name="scan_folder">Scan folder</string>
-    <string name="scan_folder_desc">Limit the media library to a specific folder</string>
+    <string name="scan_folder_desc">Limit the media library to specific folders</string>
     <string name="scan_folder_all">All storage</string>
+    <string name="add_scan_folder">Add scan folder</string>
+    <string name="no_scan_folders">No folders selected — scanning all storage</string>
+    <string name="remove_scan_folder">Remove scan folder</string>
+    <string name="remove_scan_folder_confirmation">Remove this folder from the scan range?</string>
     <string name="clear_scan_folder">Clear scan folder</string>
     <string name="video">Video</string>
     <string name="videos">Videos</string>

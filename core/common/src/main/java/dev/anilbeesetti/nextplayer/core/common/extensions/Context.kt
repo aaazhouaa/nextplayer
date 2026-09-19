@@ -173,7 +173,7 @@ private fun Context.getDataColumn(
  */
 fun Context.getFilenameFromUri(uri: Uri): String {
     return if (ContentResolver.SCHEME_FILE.equals(uri.scheme, ignoreCase = true)) {
-        File(uri.toString()).name
+        uri.path?.substringAfterLast('/') ?: uri.lastPathSegment.orEmpty()
     } else {
         getFilenameFromContentUri(uri) ?: uri.lastPathSegment ?: ""
     }
