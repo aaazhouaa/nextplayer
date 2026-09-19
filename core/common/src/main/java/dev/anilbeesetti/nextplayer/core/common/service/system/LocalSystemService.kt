@@ -6,6 +6,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import dev.anilbeesetti.nextplayer.core.common.extensions.getPath
 import dev.anilbeesetti.nextplayer.core.common.service.SuspendActivityResultLauncher
 import dev.anilbeesetti.nextplayer.core.common.service.registerForSuspendActivityResult
 import org.koin.core.annotation.Single
@@ -29,6 +30,10 @@ class LocalSystemService(
                 )
             }
         }
+    }
+
+    override suspend fun pickFolderPath(): String? {
+        return pickFolder()?.let { uri -> context.getPath(uri) }
     }
 
     override fun getString(stringResId: Int): String = context.getString(stringResId)

@@ -1,6 +1,7 @@
 package dev.anilbeesetti.nextplayer.settings.screens.medialibrary
 
 import androidx.lifecycle.viewModelScope
+import dev.anilbeesetti.nextplayer.core.common.service.system.SystemService
 import dev.anilbeesetti.nextplayer.core.data.repository.PreferencesRepository
 import dev.anilbeesetti.nextplayer.core.model.ApplicationPreferences
 import dev.anilbeesetti.nextplayer.core.ui.base.MviViewModel
@@ -15,6 +16,7 @@ import org.koin.core.annotation.KoinViewModel
 @KoinViewModel
 class MediaLibraryPreferencesViewModel(
     private val preferencesRepository: PreferencesRepository,
+    private val systemService: SystemService,
     @InjectedParam internal var output: Output,
 ) : MviViewModel<MediaLibraryPreferencesUiState, MediaLibraryPreferencesUiEvent>() {
 
@@ -44,6 +46,10 @@ class MediaLibraryPreferencesViewModel(
             is MediaLibraryPreferencesUiEvent.OpenThumbnails -> output.openThumbnails()
 
             is MediaLibraryPreferencesUiEvent.ToggleMarkLastPlayedMedia -> toggleMarkLastPlayedMedia()
+            is MediaLibraryPreferencesUiEvent.ToggleShowHiddenFiles -> toggleShowHiddenFiles()
+            is MediaLibraryPreferencesUiEvent.ToggleRespectNoMedia -> toggleRespectNoMedia()
+            is MediaLibraryPreferencesUiEvent.PickScanFolder -> pickScanFolder()
+            is MediaLibraryPreferencesUiEvent.ClearScanFolder -> clearScanFolder()
         }
     }
 
@@ -51,6 +57,41 @@ class MediaLibraryPreferencesViewModel(
         viewModelScope.launch {
             preferencesRepository.updateApplicationPreferences {
                 it.copy(markLastPlayedMedia = !it.markLastPlayedMedia)
+            }
+        }
+    }
+
+    private fun toggleShowHiddenFiles() {
+        viewModelScope.launch {
+            preferencesRepository.updateApplicationPreferences {
+                it.copy(showHiddenFiles = !it.showHiddenFiles)
+            }
+        }
+    }
+
+    private fun toggleRespectNoMedia() {
+        viewModelScope.launch {
+            preferencesRepository.updateApplicationPreferences {
+                it.copy(respectNoMedia = !it.respectNoMedia)
+            }
+        }
+    }
+
+    private fun pickScanFolder() {
+        viewModelScope.launch {
+            val path = systemService.pickFolderPath()
+            if (path != null) {
+                preferencesRepository.updateApplicationPreferences {
+                    it.copy(scanFolderPath = path)
+                }
+            }
+        }
+    }
+
+    private fun clearScanFolder() {
+        viewModelScope.launch {
+            preferencesRepository.updateApplicationPreferences {
+                it.copy(scanFolderPath = null)
             }
         }
     }
@@ -66,4 +107,8 @@ sealed interface MediaLibraryPreferencesUiEvent {
     data object OpenThumbnails : MediaLibraryPreferencesUiEvent
 
     data object ToggleMarkLastPlayedMedia : MediaLibraryPreferencesUiEvent
+    data object ToggleShowHiddenFiles : MediaLibraryPreferencesUiEvent
+    data object ToggleRespectNoMedia : MediaLibraryPreferencesUiEvent
+    data object PickScanFolder : MediaLibraryPreferencesUiEvent
+    data object ClearScanFolder : MediaLibraryPreferencesUiEvent
 }

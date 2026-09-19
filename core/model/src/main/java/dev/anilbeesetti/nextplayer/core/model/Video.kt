@@ -18,6 +18,7 @@ data class Video(
     val formattedDuration: String = "",
     val formattedFileSize: String = "",
     val format: String? = null,
+    val isHidden: Boolean = false,
     val lastPlayedAt: Date? = null,
     val videoStream: VideoStreamInfo? = null,
     val audioStreams: List<AudioStreamInfo> = emptyList(),

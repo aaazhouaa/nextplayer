@@ -75,6 +75,8 @@ internal class FakeSystemService : SystemService {
 
     override suspend fun pickFolder(): Uri? = null
 
+    override suspend fun pickFolderPath(): String? = null
+
     override fun getString(stringResId: Int): String = "string-$stringResId"
 
     override fun getQuantityString(

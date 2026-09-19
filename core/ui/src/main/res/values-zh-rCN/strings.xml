@@ -92,6 +92,14 @@
     <string name="ff_rewind">快进/快退</string>
     <string name="scanning_storage">正在扫描存储空间…</string>
     <string name="manage_folders_desc">选择要在媒体库中排除的文件夹</string>
+    <string name="show_hidden_files">显示隐藏文件</string>
+    <string name="show_hidden_files_desc">包含隐藏文件夹和以点开头的文件中的视频</string>
+    <string name="respect_no_media">识别 .nomedia</string>
+    <string name="respect_no_media_desc">排除包含 .nomedia 标记的目录中的媒体</string>
+    <string name="scan_folder">扫描文件夹</string>
+    <string name="scan_folder_desc">将媒体库限制到指定文件夹</string>
+    <string name="scan_folder_all">全部存储空间</string>
+    <string name="clear_scan_folder">清除扫描文件夹</string>
     <string name="screen_rotation">屏幕旋转</string>
     <string name="automatic">自动（传感器）</string>
     <string name="landscape">横向</string>

@@ -17,19 +17,31 @@ interface MediaService {
      * Emits a new list whenever the underlying media changes.
      *
      * @param folderPath The root path to search for videos, or null to scan all storage volumes.
+     * @param includeHidden Whether to include files MediaStore skips (hidden/.nomedia directories).
+     * @param respectNoMedia Whether to exclude directories whose own path or an ancestor contains a `.nomedia` marker.
      * @return A flow of folder lists. Each folder represents a directory containing at least one video.
      *         Folder statistics (videosCount, foldersCount) are set to 0 - compute at use case layer.
      */
-    fun observeFolders(folderPath: String? = null): Flow<List<MediaFolder>>
+    fun observeFolders(
+        folderPath: String? = null,
+        includeHidden: Boolean = false,
+        respectNoMedia: Boolean = false,
+    ): Flow<List<MediaFolder>>
 
     /**
      * Observes all videos under the given path recursively.
      * Emits a new list whenever the underlying media changes.
      *
      * @param folderPath The root path to search for videos, or null to scan all storage volumes.
+     * @param includeHidden Whether to include files MediaStore skips (hidden/.nomedia directories).
+     * @param respectNoMedia Whether to exclude directories whose own path or an ancestor contains a `.nomedia` marker.
      * @return A flow of video lists containing all videos found under the path.
      */
-    fun observeVideos(folderPath: String? = null): Flow<List<MediaVideo>>
+    fun observeVideos(
+        folderPath: String? = null,
+        includeHidden: Boolean = false,
+        respectNoMedia: Boolean = false,
+    ): Flow<List<MediaVideo>>
 
     fun observeTrashVideos(): Flow<List<MediaVideo>>
 
@@ -37,10 +49,16 @@ interface MediaService {
      * Fetches all unique folders containing videos under the given path (one-shot).
      *
      * @param folderPath The root path to search for videos, or null to scan all storage volumes.
+     * @param includeHidden Whether to include files MediaStore skips (hidden/.nomedia directories).
+     * @param respectNoMedia Whether to exclude directories whose own path or an ancestor contains a `.nomedia` marker.
      * @return List of folders, each representing a directory containing at least one video.
      *         Folder statistics (videosCount, foldersCount) are set to 0 - compute at use case layer.
      */
-    suspend fun fetchFolders(folderPath: String? = null): List<MediaFolder>
+    suspend fun fetchFolders(
+        folderPath: String? = null,
+        includeHidden: Boolean = false,
+        respectNoMedia: Boolean = false,
+    ): List<MediaFolder>
 
     /**
      * Fetches all videos under the given path recursively (one-shot).
@@ -49,9 +67,15 @@ interface MediaService {
      * failed query from a successful empty result.
      *
      * @param folderPath The root path to search for videos, or null to scan all storage volumes.
+     * @param includeHidden Whether to include files MediaStore skips (hidden/.nomedia directories).
+     * @param respectNoMedia Whether to exclude directories whose own path or an ancestor contains a `.nomedia` marker.
      * @return List of all videos found under the path.
      */
-    suspend fun fetchVideos(folderPath: String? = null): List<MediaVideo>
+    suspend fun fetchVideos(
+        folderPath: String? = null,
+        includeHidden: Boolean = false,
+        respectNoMedia: Boolean = false,
+    ): List<MediaVideo>
 
     /**
      * Finds a specific video by its content URI.

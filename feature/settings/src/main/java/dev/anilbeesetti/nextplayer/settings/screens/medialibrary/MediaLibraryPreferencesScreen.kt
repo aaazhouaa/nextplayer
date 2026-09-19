@@ -16,10 +16,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.content.Intent
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import dev.anilbeesetti.nextplayer.core.model.ThumbnailGenerationStrategy
 import dev.anilbeesetti.nextplayer.core.ui.R
 import dev.anilbeesetti.nextplayer.core.ui.components.ClickablePreferenceItem
@@ -52,6 +58,7 @@ private fun MediaLibraryPreferencesScreenContent(
     onAction: (MediaLibraryPreferencesUiEvent) -> Unit,
 ) {
     val preferences = state.preferences
+    val context = LocalContext.current
 
     val focusState = rememberRestorableFocusState()
 
@@ -101,13 +108,58 @@ private fun MediaLibraryPreferencesScreenContent(
             Column(
                 verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
             ) {
+                PreferenceSwitch(
+                    modifier = Modifier.restorableFocusItem(focusState, "show_hidden_files"),
+                    title = stringResource(id = R.string.show_hidden_files),
+                    description = stringResource(id = R.string.show_hidden_files_desc),
+                    icon = NextIcons.HideSource,
+                    isChecked = preferences.showHiddenFiles,
+                    onClick = {
+                        if (!preferences.showHiddenFiles && !hasAllFilesAccess(context)) {
+                            launchAllFilesAccessSettings(context)
+                        } else {
+                            onAction(MediaLibraryPreferencesUiEvent.ToggleShowHiddenFiles)
+                        }
+                    },
+                    isFirstItem = true,
+                    isLastItem = false,
+                )
+                PreferenceSwitch(
+                    modifier = Modifier.restorableFocusItem(focusState, "respect_no_media"),
+                    title = stringResource(id = R.string.respect_no_media),
+                    description = stringResource(id = R.string.respect_no_media_desc),
+                    icon = NextIcons.FolderOff,
+                    isChecked = preferences.respectNoMedia,
+                    onClick = { onAction(MediaLibraryPreferencesUiEvent.ToggleRespectNoMedia) },
+                    isFirstItem = false,
+                    isLastItem = false,
+                )
+                ClickablePreferenceItem(
+                    modifier = Modifier.restorableFocusItem(focusState, "scan_folder"),
+                    title = stringResource(id = R.string.scan_folder),
+                    description = preferences.scanFolderPath ?: stringResource(id = R.string.scan_folder_all),
+                    icon = NextIcons.Folder,
+                    onClick = { onAction(MediaLibraryPreferencesUiEvent.PickScanFolder) },
+                    isFirstItem = false,
+                    isLastItem = false,
+                )
+                if (preferences.scanFolderPath != null) {
+                    ClickablePreferenceItem(
+                        modifier = Modifier.restorableFocusItem(focusState, "clear_scan_folder"),
+                        title = stringResource(id = R.string.clear_scan_folder),
+                        icon = NextIcons.FolderOff,
+                        onClick = { onAction(MediaLibraryPreferencesUiEvent.ClearScanFolder) },
+                        isFirstItem = false,
+                        isLastItem = false,
+                    )
+                }
                 ClickablePreferenceItem(
                     modifier = Modifier.restorableFocusItem(focusState, "manage_folders"),
                     title = stringResource(id = R.string.manage_folders),
                     description = stringResource(id = R.string.manage_folders_desc),
                     icon = NextIcons.FolderOff,
                     onClick = { onAction(MediaLibraryPreferencesUiEvent.OpenFolders) },
-                    isFirstItem = true,
+                    isFirstItem = false,
                     isLastItem = true,
                 )
             }
@@ -132,6 +184,23 @@ private fun MediaLibraryPreferencesScreenContent(
             }
         }
     }
+}
+
+private fun hasAllFilesAccess(context: android.content.Context): Boolean {
+    return Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+}
+
+private fun launchAllFilesAccessSettings(context: android.content.Context) {
+    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+            data = "package:${context.packageName}".toUri()
+        }
+    } else {
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = "package:${context.packageName}".toUri()
+        }
+    }
+    context.startActivity(intent)
 }
 
 @PreviewLightDark

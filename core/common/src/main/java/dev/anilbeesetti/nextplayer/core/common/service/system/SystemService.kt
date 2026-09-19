@@ -8,6 +8,7 @@ import androidx.annotation.StringRes
 interface SystemService {
     fun initialize(activity: ComponentActivity)
     suspend fun pickFolder(): Uri?
+    suspend fun pickFolderPath(): String?
     fun getString(@StringRes stringResId: Int): String
     fun getQuantityString(
         @PluralsRes pluralsResId: Int,

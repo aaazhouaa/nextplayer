@@ -23,10 +23,12 @@ import io.github.anilbeesetti.nextlib.mediainfo.MediaInfoBuilder
 import java.util.Date
 import kotlin.math.absoluteValue
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Factory
@@ -35,31 +37,64 @@ import org.koin.core.annotation.Factory
 class LocalMediaRepository(
     private val mediumStateDao: MediumStateDao,
     private val mediaService: MediaService,
+    private val preferencesRepository: PreferencesRepository,
     private val context: Context,
 ) : MediaRepository {
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeFolders(folderPath: String?): Flow<List<Folder>> {
-        return mediaService.observeFolders(folderPath).map { mediaFolders ->
-            mediaFolders.map { it.toFolder() }
-        }
+        return preferencesRepository.applicationPreferences
+            .flatMapLatest { preferences ->
+                val scanRoot = folderPath ?: preferences.scanFolderPath
+                mediaService.observeFolders(
+                    folderPath = scanRoot,
+                    includeHidden = preferences.showHiddenFiles,
+                    respectNoMedia = preferences.respectNoMedia,
+                )
+            }
+            .map { mediaFolders -> mediaFolders.map { it.toFolder() } }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun observeVideos(folderPath: String?): Flow<List<Video>> {
-        return combine(mediaService.observeVideos(folderPath), mediumStateDao.getAll()) { mediaVideos, mediumStates ->
-            val statesMap = mediumStates.associateBy { it.uriString }
-            mediaVideos.map { mediaVideo ->
-                val mediaState = statesMap[mediaVideo.uri.toString()]
-                mediaVideo.toVideo(mediaState)
+        return preferencesRepository.applicationPreferences
+            .flatMapLatest { preferences ->
+                val scanRoot = folderPath ?: preferences.scanFolderPath
+                combine(
+                    mediaService.observeVideos(
+                        folderPath = scanRoot,
+                        includeHidden = preferences.showHiddenFiles,
+                        respectNoMedia = preferences.respectNoMedia,
+                    ),
+                    mediumStateDao.getAll(),
+                ) { mediaVideos, mediumStates ->
+                    val statesMap = mediumStates.associateBy { it.uriString }
+                    mediaVideos.map { mediaVideo ->
+                        val mediaState = statesMap[mediaVideo.uri.toString()]
+                        mediaVideo.toVideo(mediaState)
+                    }
+                }
             }
-        }
     }
 
     override suspend fun fetchFolders(folderPath: String?): List<Folder> {
-        return mediaService.fetchFolders(folderPath).map { it.toFolder() }
+        val preferences = preferencesRepository.applicationPreferences.value
+        val scanRoot = folderPath ?: preferences.scanFolderPath
+        return mediaService.fetchFolders(
+            folderPath = scanRoot,
+            includeHidden = preferences.showHiddenFiles,
+            respectNoMedia = preferences.respectNoMedia,
+        ).map { it.toFolder() }
     }
 
     override suspend fun fetchVideos(folderPath: String?): List<Video> {
-        return mediaService.fetchVideos(folderPath).mapAsync { mediaVideo ->
+        val preferences = preferencesRepository.applicationPreferences.value
+        val scanRoot = folderPath ?: preferences.scanFolderPath
+        return mediaService.fetchVideos(
+            folderPath = scanRoot,
+            includeHidden = preferences.showHiddenFiles,
+            respectNoMedia = preferences.respectNoMedia,
+        ).mapAsync { mediaVideo ->
             val mediaState = mediumStateDao.get(mediaVideo.uri.toString())
             mediaVideo.toVideo(mediaState)
         }

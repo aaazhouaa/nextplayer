@@ -41,6 +41,7 @@ import org.koin.core.annotation.Single
 class MediaStoreMediaService(
     private val context: Context,
     @Named(DiQualifiers.APPLICATION_SCOPE) private val applicationScope: CoroutineScope,
+    private val hiddenVideoScanner: HiddenVideoScanner,
 ) : MediaService {
 
     companion object {
@@ -83,16 +84,16 @@ class MediaStoreMediaService(
             replay = 1,
         )
 
-    override fun observeFolders(folderPath: String?): Flow<List<MediaFolder>> {
+    override fun observeFolders(folderPath: String?, includeHidden: Boolean, respectNoMedia: Boolean): Flow<List<MediaFolder>> {
         return mediaChanges
-            .map { fetchFolders(folderPath) }
+            .map { fetchFolders(folderPath, includeHidden, respectNoMedia) }
             .flowOn(Dispatchers.IO)
             .distinctUntilChanged()
     }
 
-    override fun observeVideos(folderPath: String?): Flow<List<MediaVideo>> {
+    override fun observeVideos(folderPath: String?, includeHidden: Boolean, respectNoMedia: Boolean): Flow<List<MediaVideo>> {
         return mediaChanges
-            .map { fetchVideos(folderPath) }
+            .map { fetchVideos(folderPath, includeHidden, respectNoMedia) }
             .flowOn(Dispatchers.IO)
             .distinctUntilChanged()
     }
@@ -104,8 +105,8 @@ class MediaStoreMediaService(
             .distinctUntilChanged()
     }
 
-    override suspend fun fetchFolders(folderPath: String?): List<MediaFolder> = withContext(Dispatchers.IO) {
-        val videos = fetchVideos(folderPath)
+    override suspend fun fetchFolders(folderPath: String?, includeHidden: Boolean, respectNoMedia: Boolean): List<MediaFolder> = withContext(Dispatchers.IO) {
+        val videos = fetchVideos(folderPath, includeHidden, respectNoMedia)
 
         val videosByFolder = videos.groupBy { File(it.path).parentFile }
 
@@ -124,8 +125,13 @@ class MediaStoreMediaService(
         }
     }
 
-    override suspend fun fetchVideos(folderPath: String?): List<MediaVideo> = withContext(Dispatchers.IO) {
-        queryVideos(folderPath)
+    override suspend fun fetchVideos(folderPath: String?, includeHidden: Boolean, respectNoMedia: Boolean): List<MediaVideo> = withContext(Dispatchers.IO) {
+        val mediaStoreVideos = queryVideos(folderPath)
+        if (!includeHidden) return@withContext mediaStoreVideos
+
+        val hiddenVideos = hiddenVideoScanner.scan(folderPath, respectNoMedia)
+        val knownPaths = mediaStoreVideos.mapTo(mutableSetOf()) { it.path }
+        return@withContext mediaStoreVideos + hiddenVideos.filter { it.path !in knownPaths }
     }
 
     override suspend fun findVideo(uri: Uri): MediaVideo? = withContext(Dispatchers.IO) {

@@ -58,7 +58,7 @@ class MediaStoreMediaServicePermissionTest {
 
         try {
             try {
-                MediaStoreMediaService(context, applicationScope).fetchVideos()
+                MediaStoreMediaService(context, applicationScope, HiddenVideoScanner(context)).fetchVideos()
                 fail("Expected MediaStore permission denial to be preserved")
             } catch (_: SecurityException) {
                 // Expected: callers decide how to handle an unavailable MediaStore snapshot.
@@ -103,7 +103,7 @@ class MediaStoreMediaServicePermissionTest {
 
         try {
             try {
-                MediaStoreMediaService(context, applicationScope).fetchVideos()
+                MediaStoreMediaService(context, applicationScope, HiddenVideoScanner(context)).fetchVideos()
                 fail("Expected a null MediaStore cursor to fail the strict snapshot")
             } catch (_: IllegalStateException) {
                 // Expected: reconciliation must not treat a null cursor as an empty library.

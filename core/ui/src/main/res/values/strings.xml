@@ -99,6 +99,14 @@
     <string name="scanning_storage">Scanning storage…</string>
     <string name="manage_folders">Manage folders</string>
     <string name="manage_folders_desc">Select folders to be excluded in the media library</string>
+    <string name="show_hidden_files">Show hidden files</string>
+    <string name="show_hidden_files_desc">Include videos in hidden folders and files starting with a dot</string>
+    <string name="respect_no_media">Respect .nomedia</string>
+    <string name="respect_no_media_desc">Exclude media in directories containing a .nomedia marker</string>
+    <string name="scan_folder">Scan folder</string>
+    <string name="scan_folder_desc">Limit the media library to a specific folder</string>
+    <string name="scan_folder_all">All storage</string>
+    <string name="clear_scan_folder">Clear scan folder</string>
     <string name="video">Video</string>
     <string name="videos">Videos</string>
     <string name="screen_rotation">Screen Rotation</string>
